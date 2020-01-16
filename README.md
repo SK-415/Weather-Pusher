@@ -24,7 +24,7 @@ pip install "nonebot[scheduler]"
 ```
 
 ## 下载插件源码
-从本页面下载插件的源码或者通过git克隆到本地，记住文件的位置
+从[release页面](https://github.com/songrk415/Weather-Pusher/releases)下载插件的最新源码压缩包（在“Assests”下的“Souce code(zip)”），记住文件的位置
 
 ## 注册 accuweather APIKey
 >本插件目前依赖accuweather的api端口获取天气，免费用户每天最多获取50条。未来会尝试直接爬取网站xml进行解析 ~~（等我把爬虫学会）~~，也不会有获取次数限制
