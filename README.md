@@ -26,25 +26,9 @@ pip install "nonebot[scheduler]"
 ## 下载插件源码
 从[release页面](https://github.com/songrk415/Weather-Pusher/releases)下载插件的最新源码压缩包（在“Assests”下的“Souce code(zip)”），记住文件的位置
 
-## 注册 accuweather APIKey
->本插件目前依赖accuweather的api端口获取天气，免费用户每天最多获取50条。未来会尝试直接爬取网站xml进行解析 ~~（等我把爬虫学会）~~，也不会有获取次数限制
-
-1. 打开 [AccuWeather APIs](https://developer.accuweather.com/) 点击右上角注册账号
-2. 注册好后回到首页
-3. 依次点击 "My APPS" --> "+ Add a new App"
-4. 填写信息，除了第二项，其他随便填即可，下面是一份参考：
-   * App Name: Weather
-   * **Product: Limited Trial**
-   * Where will the API be used?: Other
-   * What will you be creating with this API?: Internal App
-   * What programming language is your APP written in?: Python
-   * Is this for Business to Business or Business to Consumer use?: Business to Consumer
-   * Is this Worldwide or Country specific use?: Worldwide
-5. 点击 "Create App" 创建 APP
-6. 回到 "My APPS" 页面，复制我们刚刚创建的APP 的 API Key
-7. 回到刚刚下载的插件代码的根目录（跟 "bot.py" 同级），新建一个"apikey.txt"（注意全部小写），把刚刚复制的 API Key 粘贴到这个文本文件里并保存
-8. 回到根目录，按住 SHIFT 并在空白处单击右键，选择 “在此处打开 Powershell 窗口”
-9. 在 Poweshell 里输入 `python bot.py`，如果看到类似以下的字段则代表运行成功。**如果出现报错，请从头检查之前步骤是否有遗漏**
+## 启动机器人
+1. 到解压文件夹的根目录，按住 SHIFT 并对空白处单击右键，选择 “在此处打开 Powershell 窗口”
+2. 在 Poweshell 里输入 `python bot.py`，如果看到类似以下的字段则代表运行成功。**如果出现报错，请从头检查之前步骤是否有遗漏**
 ```
 ujson module not found, using json
 msgpack not installed, MsgPackSerializer unavailable
@@ -54,7 +38,6 @@ Running on https://0.0.0.0:8080 (CTRL + C to quit)
 [2020-01-04 17:11:06,944] ASGI Framework Lifespan error, continuing without Lifespan support
 [2020-01-04 17:11:06,952 nonebot] INFO: Scheduler started
 ```
->以后每次启动机器人只需重复8、9步即可
 
 ## 安装CoolQ HTTP API 插件
 这里直接引用 nonebot 文档原文：
