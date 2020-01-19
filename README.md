@@ -26,7 +26,7 @@ pip install "nonebot[scheduler]"
 ## 下载插件源码
 从[release页面](https://github.com/songrk415/Weather-Pusher/releases)下载插件的最新源码压缩包（在“Assests”下的“Souce code(zip)”），记住文件的位置
 
-## 启动机器人
+## 运行插件
 1. 到解压文件夹的根目录，按住 SHIFT 并对空白处单击右键，选择 “在此处打开 Powershell 窗口”
 2. 在 Poweshell 里输入 `python bot.py`，如果看到类似以下的字段则代表运行成功。**如果出现报错，请从头检查之前步骤是否有遗漏**
 ```
