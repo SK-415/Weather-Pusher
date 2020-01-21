@@ -29,12 +29,13 @@ async def weather(session):
     
     results_url = search_results[selection].cssselect('a')[0].get('href')
     code = re.search(r'id=(\d*)', results_url).group(1)
-    
-    current_location = search_results[selection]
+
+    # current_location = search_results[selection]
     city = current_location['localizedName']
-    weather_data = await get_weather_data(current_location['key'])
-    time_zone = weather_data['time_zone']
-    settings['city_list'][city] = {'code': current_location['key'], 'time_zone': time_zone, 'members': [session.ctx['user_id']]}
+    city = search_results[selection].text_content()
+    weather_data = await get_current_weather_data(current_location['key'])
+    time_zone = tz_calc(weather_data['current_time'][7:9])
+    settings['city_list'][city] = {'code': code, 'time_zone': time_zone, 'members': [session.ctx['user_id']]}
     
     
     await update_settings(settings)
@@ -90,6 +91,9 @@ async def format_msg(w, city, current=False):
                     f"日出\\日落：{w['sunrise']}\\{w['sunset']}" 
     return weather_str
 
+async def tz_calc(hour_now):
+    pass
+
 async def tz_check(time_zone):
     """查看是否有时区到早上6点了"""
     utc_dt = datetime.utcnow().replace(tzinfo=timezone.utc)
@@ -109,23 +113,24 @@ async def read_settings():
 
 async def get_weather_data(location):
     """爬取当天天气"""
-    url = f'https://www.accuweather.com/zh/ca/victoria/v8w/daily-weather-forecast/{location}?day=1'
-    r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 6.2; Win64; x64; rv:27.0) Gecko/20121011 Firefox/72.0', 'accept-language': 'zh-CN'})
-    fixed_html = html.unescape(r.text)
+    url = f'https://m.weathercn.com/daily-weather-forecast.do?day=1&id={code}'
+    r = requests.get(url)
+    tree = fromstring(r.text)
 
-    time_zone = int(float(re.search(r'"gmtOffset":(.*?),', fixed_html).group(1)))
-    date = re.search(r'<p class="module-header sub date">(.*?)</p>', fixed_html).group(1)
-    day_temp = re.search(r'白天.*?<p class="value">\s*(.*?)\s*<span class="hi-lo-label">', fixed_html, re.S).group(1)
-    night_temp = re.search(r'夜晚.*?<p class="value">\s*(.*?)\s*<span class="hi-lo-label">', fixed_html, re.S).group(1)
-    day_feel = re.search(r'白天.*?RealFeel®\s*(.*?)\s*</p>', fixed_html, re.S).group(1)
-    night_feel = re.search(r'夜晚.*?RealFeel®\s*(.*?)\s*</p>', fixed_html, re.S).group(1)
-    day_weather = re.search(r'白天.*?<div class="phrase">(.*?)</div>', fixed_html, re.S).group(1)
-    night_weather = re.search(r'夜晚.*?<div class="phrase">(.*?)</div>', fixed_html, re.S).group(1)
-    sunrise = re.search(r'<span class="section-header">日出.*?<span class="section-content">(.*?)</span>', fixed_html, re.S).group(1)
-    sunset = re.search(r'<span class="section-header">日落.*?<span class="section-content">(.*?)</span>', fixed_html, re.S).group(1)
+    date = tree.cssselect('section.date > div > ul > li')[0].text_content()
+    weather = tree.cssselect('section.detail > section.weather > div.left > p')
+    day_weather = weather[0].text_content()
+    night_weather = weather[1].text_content()
+    temp = tree.cssselect('ul.right li.top > p.left > strong')
+    day_temp = temp[0].text_content()
+    night_temp = temp[1].text_content()
+    feel = tree.cssselect('ul.right li.top > p.right > strong')
+    day_feel = feel[0].text_content()
+    night_feel = feel[1].text_content()
+    sunrise = tree.cssselect('section.cloud > p > strong')[0].text_content()
+    sunset = tree.cssselect('section.cloud > p > strong')[1].text_content()
 
     weather_data = {
-        'time_zone': time_zone,
         'date': date,
         'day_weather': day_weather,
         'day_temp': day_temp,
@@ -139,16 +144,19 @@ async def get_weather_data(location):
     return weather_data
 
 async def get_current_weather_data(code):
-    url = f'https://www.accuweather.com/zh/ca/victoria/v8w/current-weather/{code}'
-    r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 6.2; Win64; x64; rv:27.0) Gecko/20121011 Firefox/72.0', 'accept-language': 'zh-CN'})
-    fixed_html = html.unescape(r.text)
+    url = f'https://m.weathercn.com/current-weather.do?id={code}'
+    r = requests.get(url)
+    with open('new_current_weather.html', 'w', encoding='utf-8') as f:
+        f.write(r.text)
+    tree = fromstring(r.text)
 
-    current_time = re.search(r'<p class="module-header sub date">(.*?)</p>', fixed_html).group(1)
-    current_temp = re.search(r'当前天气.*?<p class="value">\s*(.*?)\s*<span class="hi-lo-label">', fixed_html, re.S).group(1)
-    current_feel = re.search(r'当前天气.*?RealFeel®\s*(.*?)\s*</p>', fixed_html, re.S).group(1)
-    current_weather = re.search(r'当前天气.*?<div class="phrase">(.*?)</div>', fixed_html, re.S).group(1)
-    sunrise = re.search(r'<span class="section-header">日出.*?<span class="section-content">(.*?)</span>', fixed_html, re.S).group(1)
-    sunset = re.search(r'<span class="section-header">日落.*?<span class="section-content">(.*?)</span>', fixed_html, re.S).group(1)
+    current_time = tree.cssselect('section.real_weather > p.date')[0].text_content()[:16]
+    current_weather = tree.cssselect('a.head-right > p')[0].text_content().split()[0]
+    current_temp = tree.cssselect('section.real_weather > section.weather > p ')[0].text_content()
+    current_feel = tree.cssselect('ol.detail_01 li > p')[1].text_content()
+    sun = tree.cssselect('section.sun_moon > p span')
+    sunrise = sun[0].text_content()
+    sunset = sun[1].text_content()
 
     current_weather_data = {
         'current_time': current_time,
