@@ -1,6 +1,7 @@
-import nonebot, json, requests, re, html
+import nonebot, json, requests, re, html, cssselect
 from nonebot.command.argfilter import extractors, validators
 from datetime import datetime, timedelta, timezone
+from lxml.html import fromstring
 
 
 @nonebot.on_command('天气', shell_like=True)
@@ -25,6 +26,10 @@ async def weather(session):
     if session.current_key != 'selection':
         await session.send(format_str)
     selection = session.get('selection', prompt="回复序号确认地区", arg_filters=[extractors.extract_text, str.strip, validators.not_empty('输入不能为空'), int])
+    
+    results_url = search_results[selection].cssselect('a')[0].get('href')
+    code = re.search(r'id=(\d*)', results_url).group(1)
+    
     current_location = search_results[selection]
     city = current_location['localizedName']
     weather_data = await get_weather_data(current_location['key'])
@@ -44,17 +49,16 @@ async def member_in_list(settings, user_id):
     return False
 
 async def get_search_results(city):
-    url = 'https://www.accuweather.com/zh/search-locations?query=' + city
-    r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 6.2; Win64; x64; rv:27.0) Gecko/20121011 Firefox/72.0', 'accept-language': 'zh-CN'})
-    results_text = re.search(r'(?<=var searchLocationResults = ).*(?=;)', r.text).group()
-    results = json.loads(results_text)
+    url = 'https://m.weathercn.com/search-locations.do?search=' + city
+    r = requests.get(url, timeout=5)
+    tree = fromstring(r.text)
+    results = tree.cssselect('div#searchresult > ul > li')
     return results
 
 async def format_results(results):
     format_string = ''
-    for i in range(len(results)):
-        r = results[i]
-        format_string += f"{i}. {r['localizedName']} ({r['country']['localizedName']}, {r['administrativeArea']['localizedName']})\n"
+    for i in range(1, len(results)):
+        format_string += f"{i}. {results[i].text_content()}\n"
     return format_string
 
 # @nonebot.on_command('定时', shell_like=True)
