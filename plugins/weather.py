@@ -31,15 +31,16 @@ async def weather(session):
     code = re.search(r'id=(\d*)', results_url).group(1)
 
     # current_location = search_results[selection]
-    city = current_location['localizedName']
+    # city = current_location['localizedName']
     city = search_results[selection].text_content()
-    weather_data = await get_current_weather_data(current_location['key'])
-    time_zone = tz_calc(weather_data['current_time'][7:9])
+    weather_data = await get_current_weather_data(code)
+    time_zone = await tz_calc(int(weather_data['current_time'][3:5]), int(weather_data['current_time'][7:9]), datetime.utcnow())
     settings['city_list'][city] = {'code': code, 'time_zone': time_zone, 'members': [session.ctx['user_id']]}
+    await session.send(str(settings))
     
     
     await update_settings(settings)
-    await session.send(f"已将您的天气推送地区设为：\n {format_str.splitlines()[selection]}")
+    await session.send(f"已将您的天气推送地区设为：\n {format_str.splitlines()[selection-1]}")
 
 async def member_in_list(settings, user_id):
     """检查QQ是否已经录入，并返回所在城市"""
@@ -91,8 +92,14 @@ async def format_msg(w, city, current=False):
                     f"日出\\日落：{w['sunrise']}\\{w['sunset']}" 
     return weather_str
 
-async def tz_calc(hour_now):
-    pass
+async def tz_calc(local_day, local_hour, utc_time):
+    if local_day < utc_time.day:
+        time_zone = local_hour -24 - utc_time.hour
+    elif local_day > utc_time.day:
+        time_zone = 24 - utc_time.hour + local_hour
+    else:
+        time_zone = local_hour - utc_time.hour
+    return time_zone
 
 async def tz_check(time_zone):
     """查看是否有时区到早上6点了"""
