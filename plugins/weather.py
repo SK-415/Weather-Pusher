@@ -11,7 +11,7 @@ async def weather(session):
     city_name = await member_in_list(settings, session.ctx['user_id'])
     if city_name:
         current_weather_data = await get_current_weather_data(settings['city_list'][city_name]['code'])
-        await session.finish(await format_msg(current_weather_data, city_name, current=True))
+        await session.finish(await format_msg(current_weather_data, settings['city_list'][city_name], current=True))
     
     if session.is_first_run:
         await session.send('您还没有注册过推送地区，接下来将自动开始注册')
@@ -27,20 +27,13 @@ async def weather(session):
         await session.send(format_str)
     selection = session.get('selection', prompt="回复序号确认地区", arg_filters=[extractors.extract_text, str.strip, validators.not_empty('输入不能为空'), int])
     
-    results_url = search_results[selection].cssselect('a')[0].get('href')
-    code = re.search(r'id=(\d*)', results_url).group(1)
-
-    # current_location = search_results[selection]
-    # city = current_location['localizedName']
-    city = search_results[selection].text_content()
-    weather_data = await get_current_weather_data(code)
-    time_zone = await tz_calc(int(weather_data['current_time'][3:5]), int(weather_data['current_time'][7:9]), datetime.utcnow())
-    settings['city_list'][city] = {'code': code, 'time_zone': time_zone, 'members': [session.ctx['user_id']]}
-    await session.send(str(settings))
-    
+    code = search_results[selection]['code']
+    city = search_results[selection]
+    time_zone = await tz_calc(code)
+    settings['city_list'][city['local']] = {'code': code, 'local': city['local'], 'admin': city['admin'], 'country': city['country'], 'time_zone': time_zone, 'members': [session.ctx['user_id']]}
     
     await update_settings(settings)
-    await session.send(f"已将您的天气推送地区设为：\n {format_str.splitlines()[selection-1]}")
+    await session.send(f"已将您的天气推送地区设为：\n {format_str.splitlines()[selection]}")
 
 async def member_in_list(settings, user_id):
     """检查QQ是否已经录入，并返回所在城市"""
@@ -51,16 +44,26 @@ async def member_in_list(settings, user_id):
     return False
 
 async def get_search_results(city):
-    url = 'https://m.weathercn.com/search-locations.do?search=' + city
-    r = requests.get(url, timeout=5)
-    tree = fromstring(r.text)
-    results = tree.cssselect('div#searchresult > ul > li')
-    return results
+    url = 'https://m.weathercn.com/citysearchajax.do'
+    r = requests.post(url, data={'q': city})
+    results = json.loads(r.text)['listAccuCity']
+
+    cities = []
+    for city in results:
+        new_city = {
+            'code': city['key'], 
+            'country': city['countryLocalizedName'], 
+            'admin': city['administrativeAreaLocalizedName'], 
+            'local': city['localizedName']
+            }
+        cities.append(new_city)
+
+    return cities
 
 async def format_results(results):
     format_string = ''
-    for i in range(1, len(results)):
-        format_string += f"{i}. {results[i].text_content()}\n"
+    for i in range(len(results)):
+        format_string += f"{i}. {results[i]['local']}（{results[i]['country']}，{results[i]['admin']}）\n"
     return format_string
 
 # @nonebot.on_command('定时', shell_like=True)
@@ -72,33 +75,56 @@ async def _():
     for city in settings['city_list'].keys():
         if await tz_check(settings['city_list'][city]['time_zone']):
             weather_data = await get_weather_data(settings['city_list'][city]['code'])
-            settings['city_list'][city]['time_zone'] = weather_data['time_zone']
+            settings['city_list'][city]['time_zone'] = await tz_calc(settings['city_list'][city]['code'])
             await update_settings(settings)
             bot = nonebot.get_bot()
             for qq in settings['city_list'][city]['members']:
-                weather_str = await format_msg(weather_data, city)
+                weather_str = await format_msg(weather_data, settings['city_list'][city])
                 await bot.send_private_msg(user_id=qq, message=weather_str)
 
 async def format_msg(w, city, current=False):
     """把天气数据处理成易读的字符串"""
     if current:
-        weather_str = f"{city}当前天气（{w['current_time']}）\n" \
+        current_time = await get_local_time(city['time_zone'])
+        weather_str = f"{city['local']}（{city['country']}）\n{current_time}\n\n" \
             f"天气：{w['current_weather']}\n气温：{w['current_temp']}\n体感温度：{w['current_feel']}\n" \
-                f"日出\\日落：{w['sunrise']}\\{w['sunset']}"
+                f"日出/日落：{w['sunrise']} / {w['sunset']}"
     else:
-        weather_str = f"{city}今日天气（{w['date']}）\n" \
+        weather_str = f"{city['local']}（{city['country']}）\n{w['date']}\n\n" \
             f"白天：{w['day_weather']}\n气温：{w['day_temp']}\n体感温度：{w['day_feel']}\n" \
                 f"夜晚：{w['night_weather']}\n气温：{w['night_temp']}\n体感温度：{w['night_feel']}\n" \
-                    f"日出\\日落：{w['sunrise']}\\{w['sunset']}" 
+                    f"日出/日落：{w['sunrise']} / {w['sunset']}" 
     return weather_str
 
-async def tz_calc(local_day, local_hour, utc_time):
+async def tz_calc(code):
+    url = f'https://m.weathercn.com/hourly-weather-forecast.do?id={code}'
+    r = requests.get(url)
+
+    tree = fromstring(r.text)
+    results = tree.cssselect('ul.scroller li')
+    r_list = []
+    for i in range(len(results)):
+        r_list.append(results[i].text_content().split())
+    if len(r_list[1]) == 3:
+        local_day = int(r_list[1][0][:2])
+        local_hour = int(r_list[1][1][:2]) - 2
+    else:
+        local_hour = int(r_list[1][0][:2]) - 2
+        if local_hour < 0:
+            local_hour = 24 + local_hour
+        date_local = 8 - (local_hour+2)%8 + 1
+        local_day = int(r_list[date_local][0][:2])
+        if int(r_list[date_local][1][:2]) == 0 or local_hour == 23:
+            local_day -= 1
+
+    utc_time = datetime.utcnow()
     if local_day < utc_time.day:
         time_zone = local_hour -24 - utc_time.hour
     elif local_day > utc_time.day:
         time_zone = 24 - utc_time.hour + local_hour
     else:
         time_zone = local_hour - utc_time.hour
+    
     return time_zone
 
 async def tz_check(time_zone):
@@ -108,6 +134,11 @@ async def tz_check(time_zone):
     if local_tz.hour == 6:
         return True
     return False
+
+async def get_local_time(time_zone):
+    utc_dt = datetime.utcnow().replace(tzinfo=timezone.utc)
+    local_time = utc_dt.astimezone(timezone(timedelta(hours=time_zone)))
+    return local_time.strftime('%m/%d %X')
 
 async def read_settings():
     """读取本地天气数据"""
@@ -120,7 +151,7 @@ async def read_settings():
 
 async def get_weather_data(location):
     """爬取当天天气"""
-    url = f'https://m.weathercn.com/daily-weather-forecast.do?day=1&id={code}'
+    url = f'https://m.weathercn.com/daily-weather-forecast.do?day=1&id={location}'
     r = requests.get(url)
     tree = fromstring(r.text)
 
@@ -153,11 +184,9 @@ async def get_weather_data(location):
 async def get_current_weather_data(code):
     url = f'https://m.weathercn.com/current-weather.do?id={code}'
     r = requests.get(url)
-    with open('new_current_weather.html', 'w', encoding='utf-8') as f:
-        f.write(r.text)
     tree = fromstring(r.text)
 
-    current_time = tree.cssselect('section.real_weather > p.date')[0].text_content()[:16]
+    # current_time = tree.cssselect('section.real_weather > p.date')[0].text_content()[:16]
     current_weather = tree.cssselect('a.head-right > p')[0].text_content().split()[0]
     current_temp = tree.cssselect('section.real_weather > section.weather > p ')[0].text_content()
     current_feel = tree.cssselect('ol.detail_01 li > p')[1].text_content()
@@ -166,7 +195,6 @@ async def get_current_weather_data(code):
     sunset = sun[1].text_content()
 
     current_weather_data = {
-        'current_time': current_time,
         'current_temp': current_temp,
         'current_feel': current_feel,
         'current_weather': current_weather,
@@ -174,7 +202,6 @@ async def get_current_weather_data(code):
         'sunset': sunset
     }
     return current_weather_data
-
 
 async def update_settings(settings):
     """更新本地天气数据"""
