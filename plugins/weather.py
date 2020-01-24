@@ -186,7 +186,6 @@ async def get_current_weather_data(code):
     r = requests.get(url)
     tree = fromstring(r.text)
 
-    # current_time = tree.cssselect('section.real_weather > p.date')[0].text_content()[:16]
     current_weather = tree.cssselect('a.head-right > p')[0].text_content().split()[0]
     current_temp = tree.cssselect('section.real_weather > section.weather > p ')[0].text_content()
     current_feel = tree.cssselect('ol.detail_01 li > p')[1].text_content()
