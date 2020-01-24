@@ -33,7 +33,7 @@ async def weather(session):
     settings['city_list'][city['local']] = {'code': code, 'local': city['local'], 'admin': city['admin'], 'country': city['country'], 'time_zone': time_zone, 'members': [session.ctx['user_id']]}
     
     await update_settings(settings)
-    await session.send(f"已将您的天气推送地区设为：\n {format_str.splitlines()[selection]}")
+    await session.send(f"已将您的天气推送地区设为：\n {format_str.splitlines()[selection]}\n天气会每天6点自动推送，")
 
 async def member_in_list(settings, user_id):
     """检查QQ是否已经录入，并返回所在城市"""
