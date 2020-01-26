@@ -4,10 +4,16 @@ from datetime import datetime, timedelta, timezone
 from lxml.html import fromstring
 
 
+VERSION = '1.2.0'
+
 @nonebot.on_command('天气', shell_like=True)
 async def weather(session):
     """根据关键字返回可能的城市，并设置地区"""
     settings = await read_settings()
+    if 'version' not in settings or settings['version'] != VERSION:
+        await session.send('正在更新配置文件，请耐心等待\n\n（该情况仅会在更新插件后首次运行时出现）')
+        settings = await update_version(settings)
+        await session.send('配置文件更新完成')
     city_name = await member_in_list(settings, session.ctx['user_id'])
     if city_name:
         current_weather_data = await get_current_weather_data(settings['city_list'][city_name]['code'])
@@ -22,11 +28,13 @@ async def weather(session):
         await session.finish(f'“{key_word}”已经存在，已将您的推送地区设置为“{key_word}”')
 
     search_results = await get_search_results(key_word)
+    if search_results == []:
+        session.finish('没有查到任何结果，请发送“天气”重新查询\n\n请确认您的输入为中文名，且仅为城市名，如：\n维多利亚(√)\n维多利亚哥伦比亚(×)\n维多利亚加拿大(×)')
     format_str = await format_results(search_results)
     if session.current_key != 'selection':
         await session.send(format_str)
-    selection = session.get('selection', prompt="回复序号确认地区", arg_filters=[extractors.extract_text, str.strip, validators.not_empty('输入不能为空'), int])
-    
+    selection = session.get('selection', prompt="回复序号确认地区", arg_filters=[extractors.extract_text, str.strip, validators.not_empty('输入不能为空'), validators.match_regex(r'\d', message='序号必须为数字', fullmatch=True), int])
+
     code = search_results[selection]['code']
     city = search_results[selection]
     time_zone = await tz_calc(code)
@@ -146,7 +154,7 @@ async def read_settings():
         with open('settings.json', encoding='utf8') as f:
             settings = json.loads(f.read())
     except FileNotFoundError:
-        settings = {"city_list": {}}
+        settings = {"city_list": {}, 'version': VERSION}
     return settings
 
 async def get_weather_data(location):
@@ -206,3 +214,18 @@ async def update_settings(settings):
     """更新本地天气数据"""
     with open('settings.json', 'w', encoding='utf-8') as f:
         f.write(json.dumps(settings, ensure_ascii=False, indent=4))
+
+async def update_version(settings):
+    new_settings = {'city_list': {}, 'version': VERSION}
+    for name, city in settings['city_list'].items():
+        new_settings['city_list'][name] = {}
+        new_settings['city_list'][name]['code'] = city['code']
+        new_settings['city_list'][name]['members'] = city['members']
+        cities = await get_search_results(name)
+        for city in cities:
+            if city['code'] == new_settings['city_list'][name]['code']:
+                new_settings['city_list'][name].update(city)
+                break
+        new_settings['city_list'][name]['time_zone'] = await tz_calc(new_settings['city_list'][name]['code'])
+    await update_settings(new_settings)
+    return new_settings
