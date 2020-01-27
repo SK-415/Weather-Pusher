@@ -28,8 +28,8 @@ pip install "nonebot[scheduler]"
 
 ## 运行插件
 1. 到解压文件夹的根目录，按住 SHIFT 并对空白处单击右键，选择 “在此处打开 Powershell 窗口”
-2. 输入 `pip install -r requirements`
-3. 在 Poweshell 里输入 `python bot.py`，如果看到类似以下的字段则代表运行成功。**如果出现报错，请从头检查之前步骤是否有遗漏**
+2. 在 Poweshell 里输入 `pip install -r requirements`
+3. 然后再输入 `python bot.py`，如果看到类似以下的字段则代表运行成功。**如果出现报错，请从头检查之前步骤是否有遗漏**
 ```
 ujson module not found, using json
 msgpack not installed, MsgPackSerializer unavailable
@@ -102,7 +102,7 @@ Running on https://0.0.0.0:8080 (CTRL + C to quit)
 - 地区设定可以中途退出
 - 限制用户查询频率
 - 可以修改已经设定的地区
-- 更新提醒？
+- 自动检测新版本并提醒更新/自动更新
 - 使用 C++ 重写应用，可以直接打包为cpk插件，不再需要配置环境（刚开始看C++，希望有生之年能做到……）
 - ~~重写说明手册~~
 - ~~搜索城市名返回结果为空没有任何提示~~
