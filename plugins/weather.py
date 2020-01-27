@@ -22,10 +22,12 @@ async def weather(session):
         await session.finish(f'“{key_word}”已经存在，已将您的推送地区设置为“{key_word}”')
 
     search_results = await get_search_results(key_word)
+    if search_results == []:
+        session.finish('没有查到任何结果，请发送“天气”重新开始\n\n请确认您的输入为中文名，且仅为城市名，如：\n维多利亚(√)\n维多利亚哥伦比亚(×)\n维多利亚加拿大(×)')
     format_str = await format_results(search_results)
     if session.current_key != 'selection':
         await session.send(format_str)
-    selection = session.get('selection', prompt="回复序号确认地区", arg_filters=[extractors.extract_text, str.strip, validators.not_empty('输入不能为空'), int])
+    selection = session.get('selection', prompt="回复序号确认地区", arg_filters=[extractors.extract_text, str.strip, validators.not_empty('输入不能为空'), validators.match_regex(r'\d', message='请输入结果前的序号', fullmatch=True), int])
     
     code = search_results[selection]['code']
     city = search_results[selection]
