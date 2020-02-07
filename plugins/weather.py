@@ -41,7 +41,7 @@ async def weather(session):
     settings['city_list'][city['local']] = {'code': code, 'local': city['local'], 'admin': city['admin'], 'country': city['country'], 'time_zone': time_zone, 'members': [session.ctx['user_id']]}
     
     await update_settings(settings)
-    await session.send(f"已将您的天气推送地区设为：\n {format_str.splitlines()[selection]}\n天气会每天6点自动推送，")
+    await session.send(f"已将您的天气推送地区设为：\n {format_str.splitlines()[selection]}\n天气会每天6点自动推送")
 
 async def member_in_list(settings, user_id):
     """检查QQ是否已经录入，并返回所在城市"""
@@ -126,9 +126,12 @@ async def tz_calc(code):
             local_day -= 1
 
     utc_time = datetime.utcnow()
-    if local_day < utc_time.day:
+    day_difference = local_day - utc_time.day
+    # if local_day < utc_time.day:
+    if day_difference == -1 or day_difference >= 27:
         time_zone = local_hour -24 - utc_time.hour
-    elif local_day > utc_time.day:
+    # elif local_day > utc_time.day:
+    elif day_difference == 1 or day_difference <= -27:
         time_zone = 24 - utc_time.hour + local_hour
     else:
         time_zone = local_hour - utc_time.hour
