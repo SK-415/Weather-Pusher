@@ -130,10 +130,8 @@ async def tz_calc(code):
     # 根据当前小时计算当前时区
     utc_time = datetime.utcnow()
     day_difference = local_day - utc_time.day
-    # if local_day < utc_time.day:
     if day_difference == -1 or day_difference >= 27:
         time_zone = local_hour -24 - utc_time.hour
-    # elif local_day > utc_time.day:
     elif day_difference == 1 or day_difference <= -27:
         time_zone = 24 - utc_time.hour + local_hour
     else:
