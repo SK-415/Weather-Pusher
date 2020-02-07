@@ -14,19 +14,23 @@ async def weather(session):
         await session.send('正在更新配置文件，请耐心等待\n\n（该情况仅会在更新插件后首次运行时出现）')
         settings = await update_version(settings)
         await session.send('配置文件更新完成')
+    
+    # 如果用户注册过，直接返回实时天气
     city_name = await member_in_list(settings, session.ctx['user_id'])
     if city_name:
         current_weather_data = await get_current_weather_data(settings['city_list'][city_name]['code'])
         await session.finish(await format_msg(current_weather_data, settings['city_list'][city_name], current=True))
     
+    # 如果没有注册过，自动进入注册流程
     if session.is_first_run:
         await session.send('您还没有注册过推送地区，接下来将自动开始注册')
     key_word = session.get('key_word', prompt="您希望推送哪里的天气？（仅支持中文名）", arg_filters=[extractors.extract_text, str.strip, validators.not_empty('输入不能为空')])
+    # 如果搜索的地区别人已经注册过了，直接添加至该列表
     if key_word in settings['city_list']:
         settings['city_list'][key_word]['members'].append(session.ctx['user_id'])
         await update_settings(settings)
         await session.finish(f'“{key_word}”已经存在，已将您的推送地区设置为“{key_word}”')
-
+    
     search_results = await get_search_results(key_word)
     if search_results == []:
         session.finish('没有查到任何结果，请发送“天气”重新查询\n\n请确认您的输入为中文名，且仅为城市名，如：\n维多利亚(√)\n维多利亚哥伦比亚(×)\n维多利亚加拿大(×)')
@@ -34,17 +38,15 @@ async def weather(session):
     if session.current_key != 'selection':
         await session.send(format_str)
     selection = session.get('selection', prompt="回复序号确认地区", arg_filters=[extractors.extract_text, str.strip, validators.not_empty('输入不能为空'), validators.match_regex(r'\d', message='序号必须为数字', fullmatch=True), int])
-
     code = search_results[selection]['code']
     city = search_results[selection]
     time_zone = await tz_calc(code)
     settings['city_list'][city['local']] = {'code': code, 'local': city['local'], 'admin': city['admin'], 'country': city['country'], 'time_zone': time_zone, 'members': [session.ctx['user_id']]}
-    
     await update_settings(settings)
     await session.send(f"已将您的天气推送地区设为：\n {format_str.splitlines()[selection]}\n天气会每天6点自动推送")
 
 async def member_in_list(settings, user_id):
-    """检查QQ是否已经录入，并返回所在城市"""
+    """检查QQ是否已经注册，并返回所在城市"""
     for city in settings['city_list']:
         for qq in settings['city_list'][city]['members']:
             if qq == user_id:
@@ -52,10 +54,10 @@ async def member_in_list(settings, user_id):
     return False
 
 async def get_search_results(city):
+    """根据关键字，返回搜索结果"""
     url = 'https://m.weathercn.com/citysearchajax.do'
     r = requests.post(url, data={'q': city})
     results = json.loads(r.text)['listAccuCity']
-
     cities = []
     for city in results:
         new_city = {
@@ -65,10 +67,10 @@ async def get_search_results(city):
             'local': city['localizedName']
             }
         cities.append(new_city)
-
     return cities
 
 async def format_results(results):
+    """格式化打印搜索结果"""
     format_string = ''
     for i in range(len(results)):
         format_string += f"{i}. {results[i]['local']}（{results[i]['country']}，{results[i]['admin']}）\n"
@@ -91,7 +93,7 @@ async def _():
                 await bot.send_private_msg(user_id=qq, message=weather_str)
 
 async def format_msg(w, city, current=False):
-    """把天气数据处理成易读的字符串"""
+    """格式化打印天气数据处"""
     if current:
         current_time = await get_local_time(city['time_zone'])
         weather_str = f"{city['local']}（{city['country']}）\n{current_time}\n\n" \
@@ -105,14 +107,15 @@ async def format_msg(w, city, current=False):
     return weather_str
 
 async def tz_calc(code):
+    """由于华风天气网页太弱智，只能根据小时天气板块自行计算时区"""
     url = f'https://m.weathercn.com/hourly-weather-forecast.do?id={code}'
     r = requests.get(url)
-
     tree = fromstring(r.text)
     results = tree.cssselect('ul.scroller li')
     r_list = []
     for i in range(len(results)):
         r_list.append(results[i].text_content().split())
+    # 从网页上抓取并推算当前小时
     if len(r_list[1]) == 3:
         local_day = int(r_list[1][0][:2])
         local_hour = int(r_list[1][1][:2]) - 2
@@ -124,7 +127,7 @@ async def tz_calc(code):
         local_day = int(r_list[date_local][0][:2])
         if int(r_list[date_local][1][:2]) == 0 or local_hour == 23:
             local_day -= 1
-
+    # 根据当前小时计算当前时区
     utc_time = datetime.utcnow()
     day_difference = local_day - utc_time.day
     # if local_day < utc_time.day:
@@ -135,7 +138,6 @@ async def tz_calc(code):
         time_zone = 24 - utc_time.hour + local_hour
     else:
         time_zone = local_hour - utc_time.hour
-    
     return time_zone
 
 async def tz_check(time_zone):
@@ -147,12 +149,13 @@ async def tz_check(time_zone):
     return False
 
 async def get_local_time(time_zone):
+    """获取当地时间"""
     utc_dt = datetime.utcnow().replace(tzinfo=timezone.utc)
     local_time = utc_dt.astimezone(timezone(timedelta(hours=time_zone)))
     return local_time.strftime('%m/%d %X')
 
 async def read_settings():
-    """读取本地天气数据"""
+    """读取用户注册信息"""
     try:
         with open('settings.json', encoding='utf8') as f:
             settings = json.loads(f.read())
@@ -165,7 +168,6 @@ async def get_weather_data(location):
     url = f'https://m.weathercn.com/daily-weather-forecast.do?day=1&id={location}'
     r = requests.get(url)
     tree = fromstring(r.text)
-
     date = tree.cssselect('section.date > div > ul > li')[0].text_content()
     weather = tree.cssselect('section.detail > section.weather > div.left > p')
     day_weather = weather[0].text_content()
@@ -193,11 +195,11 @@ async def get_weather_data(location):
     return weather_data
 
 async def get_current_weather_data(code):
+    """获取实时天气"""
     url = f'https://m.weathercn.com/current-weather.do?id={code}'
     r = requests.get(url)
     tree = fromstring(r.text)
-
-    current_weather = tree.cssselect('a.head-right > p')[0].text_content().split()[0]
+    current_weather = tree.cssselect('a.head-right1 > p')[0].text_content().split()[0]
     current_temp = tree.cssselect('section.real_weather > section.weather > p ')[0].text_content()
     current_feel = tree.cssselect('ol.detail_01 li > p')[1].text_content()
     sun = tree.cssselect('section.sun_moon > p span')
@@ -214,11 +216,12 @@ async def get_current_weather_data(code):
     return current_weather_data
 
 async def update_settings(settings):
-    """更新本地天气数据"""
+    """更新注册信息"""
     with open('settings.json', 'w', encoding='utf-8') as f:
         f.write(json.dumps(settings, ensure_ascii=False, indent=4))
 
 async def update_version(settings):
+    """更新注册信息至最新版本"""
     new_settings = {'city_list': {}, 'version': VERSION}
     for name, city in settings['city_list'].items():
         new_settings['city_list'][name] = {}
