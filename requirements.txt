@@ -1,0 +1,4 @@
+cssselect
+requests
+nonebot[scheduler]
+lxml
