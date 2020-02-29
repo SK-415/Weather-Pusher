@@ -18,11 +18,10 @@
 
 # 环境要求
 * Python 3.6.1+
-* nonebot 库
-* nonebot scheduler 库
-* requests 库
-* lxml 库
-* cssselect 库
+* nonebot[scheduler]
+* requests
+* lxml
+* cssselect
 * 酷Q Air/Pro
 * CoolQ HTTP API 插件 v4.7+
 * ~~一颗肯折腾的心~~
@@ -33,12 +32,21 @@
 从 <a href="https://www.python.org/" target="_blank">Python 官网</a> 下载 Python 安装包并安装，**安装时注意勾选“Add to PATH”**，如果不知道如何勾选可以参考 [廖雪峰的 Python 教程](https://www.liaoxuefeng.com/wiki/1016959663602400/1016959856222624)
 
 ## 下载插件源码
-从[release页面](https://github.com/songrk415/Weather-Pusher/releases)下载插件的最新源码压缩包（在“Assests”下的“Souce code(zip)”），记住文件的位置
+酷Q的帖子底下和QQ群文件里都能下
+
+
+也可以从 [Github 的 release页面](https://github.com/songrk415/Weather-Pusher/releases) 下载插件的最新源码压缩包（在“Assests”下的“Souce code(zip)”
+
+
+下载完后找个地方解压
 
 ## 运行插件
-1. 到解压文件夹的根目录，按住 SHIFT 并对空白处单击右键，选择 “在此处打开 Powershell 窗口”
-2. 在 Poweshell 里输入 `pip install -r requirements`
-3. 然后再输入 `python bot.py`，如果看到类似以下的字段则代表运行成功。**如果出现报错，请从头检查之前步骤是否有遗漏**
+1. 解压压缩包后，**打开插件的根目录文件夹**（能看到 `bot.py`、`requirements.txt` 等文件），按住 SHIFT 并对空白处单击右键，选择 “在此处打开 Powershell 窗口”
+2. 在 Poweshell 里先输入 `pip install -r requirements.txt`
+3. 然后再输入 `python bot.py`，如果看到类似以下的字段则代表运行成功。
+
+>如果出现报错，请检查是否是在插件根目录运行的 Powershell
+
 ```
 ujson module not found, using json
 msgpack not installed, MsgPackSerializer unavailable
@@ -49,7 +57,7 @@ Running on https://0.0.0.0:8080 (CTRL + C to quit)
 [2020-01-04 17:11:06,952 nonebot] INFO: Scheduler started
 ```
 
->之后每次启动插件，只需重复1,3步骤即可
+>之后每次启动插件，只需重复1,3两步即可
 
 ## 安装 CoolQ HTTP API 插件
 这里直接引用 nonebot 文档原文：
@@ -57,7 +65,7 @@ Running on https://0.0.0.0:8080 (CTRL + C to quit)
 >>注意  
 请确保你安装的插件版本 >= 4.7，通常建议插件在大版本内尽量及时升级至最新版本。
 
-如果不知道怎么设置配置文件，请直接复制以下设置至 "<user_id>.json" 文件：
+如果不知道怎么设置配置文件，请直接复制以下设置至 "<user_id>.json" 文件（直接替换全部内容）：
 ```
 {
     "host": "",
@@ -87,11 +95,11 @@ Running on https://0.0.0.0:8080 (CTRL + C to quit)
 ```
 
 ## 更新插件
-如果需要更新机器人至更高版本，只需将压缩包中 Plugins 目录下的 weather.py 覆盖至您正在使用的版本中即可，如果出现错误可以尝试删除 settings.json 或 weather_data.json 重新尝试录入
+如果需要更新机器人至更高版本，只需将压缩包中 Plugins 目录下的内容覆盖至您正在使用的插件文件夹中同名目录下即可，如果出现错误可以尝试删除 settings.json 或 weather_data.json 重新尝试录入
 
 # 安装完成！
-如果不出意外，此时私聊机器人 “天气” 即可开始设置推送地区了。如果报错或未响应，请重新阅读步骤是否有遗漏。**有问题或意见欢迎加QQ群交流：153409375**
->感谢使用本插件，支持作者请去原贴下面留言。您的支持就是我最大的动力
+如果不出意外，此时私聊机器人 “天气” 即可开始设置推送地区了。如果报错或未响应，请重新阅读步骤是否有遗漏。使用过程中遇到问题或者bug，欢迎QQ群反馈：153409375
+>感谢使用本插件，支持作者不妨去原贴下面留条言或者点个感谢。您的支持就是我最大的动力
 
 # 更新日志
 - 2020.1.26（v1.2.0）
@@ -113,7 +121,8 @@ Running on https://0.0.0.0:8080 (CTRL + C to quit)
 - 设置天气时，如果该关键字已经存在，询问是否重名并继续查询
 - 可以修改已经设定的地区
 - 自动检测新版本并提醒更新/自动更新
-- 使用 C++ 重写应用，可以直接打包为cpk插件，不再需要配置环境（刚开始看C++，希望有生之年能做到……）
+- 自定义推动时间
+- 使用 C++/C# 重写应用，可以直接打包为cpk插件，不再需要配置环境（在学了在学了，但愿有生之年能写完……）
 - ~~重写说明手册~~
 - ~~搜索城市名返回结果为空没有任何提示~~
 - ~~选择搜索结果时如果输入不为数字会直接退出，需添加提示~~
