@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from lxml.html import fromstring
 
 
-VERSION = '1.2.0'
+VERSION = '1.3.1'
 
 @nonebot.on_command('天气', shell_like=True)
 async def weather(session):
@@ -27,9 +27,9 @@ async def weather(session):
     key_word = session.get('key_word', prompt="您希望推送哪里的天气？（仅支持中文名）", arg_filters=[extractors.extract_text, str.strip, validators.not_empty('输入不能为空')])
     # 如果搜索的地区别人已经注册过了，直接添加至该列表
     if key_word in settings['city_list']:
-        settings['city_list'][key_word]['members'].append(session.ctx['user_id'])
+        settings['city_list'][key_word]['members'].append([session.ctx['user_id'], 6])
         await update_settings(settings)
-        await session.finish(f'“{key_word}”已经存在，已将您的推送地区设置为“{key_word}”')
+        await session.finish(f'“{key_word}”已经存在，已将您的推送地区设置为“{key_word}”\n修改时间请发送【更改时间】\n修改地区请发送【更改地区】')
     
     search_results = await get_search_results(key_word)
     if search_results == []:
@@ -41,15 +41,53 @@ async def weather(session):
     code = search_results[selection]['code']
     city = search_results[selection]
     time_zone = await tz_calc(code)
-    settings['city_list'][city['local']] = {'code': code, 'local': city['local'], 'admin': city['admin'], 'country': city['country'], 'time_zone': time_zone, 'members': [session.ctx['user_id']]}
+    settings['city_list'][city['local']] = {'code': code, 'local': city['local'], 'admin': city['admin'], 'country': city['country'], 'time_zone': time_zone, 'members': [[session.ctx['user_id'], 6]]}
     await update_settings(settings)
-    await session.send(f"已将您的天气推送地区设为：\n {format_str.splitlines()[selection]}\n天气会每天6点自动推送")
+    await session.send(f"已将您的天气推送地区设为：\n {format_str.splitlines()[selection]}\n天气会每天6点自动推送\n修改时间请发送【更改时间】\n修改地区请发送【更改地区】")
+
+@nonebot.on_command('更改地区', shell_like=True)
+async def location(session):
+    """更改推送地区"""
+    settings = await read_settings()
+    if 'version' not in settings or settings['version'] != VERSION:
+        await session.send('正在更新配置文件，请耐心等待\n\n（该情况仅会在更新插件后首次运行时出现）')
+        settings = await update_version(settings)
+        await session.send('配置文件更新完成')
+
+    for name, city in settings['city_list'].items():
+        for member in city['members']:
+            if session.ctx['user_id'] == member[0]:
+                settings['city_list'][name]['members'].remove(member)
+                await update_settings(settings)
+                session.finish(f"已将您从“{name}”中移除，请发送【天气】重设地区")
+    session.finish(f"您还没有注册过地区，请发送【天气】设置")
+
+@nonebot.on_command('更改时间', shell_like=True)
+async def push_time(session):
+    """更改推送时间"""
+    settings = await read_settings()
+    if 'version' not in settings or settings['version'] != VERSION:
+        await session.send('正在更新配置文件，请耐心等待\n\n（该情况仅会在更新插件后首次运行时出现）')
+        settings = await update_version(settings)
+        await session.send('配置文件更新完成')
+    
+    if session.is_first_run:
+        for name, city in settings['city_list'].items():
+            for member in city['members']:
+                if session.ctx['user_id'] == member[0]:
+                    session.state['name'] = name
+                    session.state['index'] = city['members'].index(member)
+                    session.get('time', prompt="您想在几点推送？（0~23）", arg_filters=[extractors.extract_text, str.strip, validators.not_empty('输入不能为空'), validators.match_regex(r'\d+', message='时间必须为0~23之间的数字', fullmatch=True), int])
+        session.finish(f"您还没有注册过地区，请发送【天气】设置")
+    settings['city_list'][session.state.get('name')]['members'][session.state.get('index')] = [session.ctx['user_id'], session.state.get('time')]
+    await update_settings(settings)
+    await session.send(f"已将您的推送时间设置为{session.state.get('time')}点")
 
 async def member_in_list(settings, user_id):
     """检查QQ是否已经注册，并返回所在城市"""
     for city in settings['city_list']:
-        for qq in settings['city_list'][city]['members']:
-            if qq == user_id:
+        for member in settings['city_list'][city]['members']:
+            if member[0] == user_id:
                 return city
     return False
 
@@ -78,19 +116,19 @@ async def format_results(results):
 
 # @nonebot.on_command('定时', shell_like=True)
 # async def on_time(session):
-@nonebot.scheduler.scheduled_job('cron', hour='*')
+@nonebot.scheduler.scheduled_job('cron', hour='*', minute=1)
 async def _():
     """根据当地时区早上6点自动更新天气数据"""
     settings = await read_settings()
     for city in settings['city_list'].keys():
-        if await tz_check(settings['city_list'][city]['time_zone']):
-            weather_data = await get_weather_data(settings['city_list'][city]['code'])
-            settings['city_list'][city]['time_zone'] = await tz_calc(settings['city_list'][city]['code'])
-            await update_settings(settings)
-            bot = nonebot.get_bot()
-            for qq in settings['city_list'][city]['members']:
+        settings['city_list'][city]['time_zone'] = await tz_calc(settings['city_list'][city]['code'])
+        await update_settings(settings)
+        for member in settings['city_list'][city]['members']:
+            if await tz_check(settings['city_list'][city]['time_zone'], member[1]):
+                weather_data = await get_weather_data(settings['city_list'][city]['code'])
+                bot = nonebot.get_bot()
                 weather_str = await format_msg(weather_data, settings['city_list'][city])
-                await bot.send_private_msg(user_id=qq, message=weather_str)
+                await bot.send_private_msg(user_id=member[0], message=weather_str)
 
 async def format_msg(w, city, current=False):
     """格式化打印天气数据处"""
@@ -98,12 +136,12 @@ async def format_msg(w, city, current=False):
         current_time = await get_local_time(city['time_zone'])
         weather_str = f"{city['local']}（{city['country']}）\n{current_time}\n\n" \
             f"天气：{w['current_weather']}\n气温：{w['current_temp']}\n体感温度：{w['current_feel']}\n" \
-                f"日出/日落：{w['sunrise']} / {w['sunset']}"
+                f"日出/日落：{w['sunrise']} / {w['sunset']}\n\n修改时间请发送【更改时间】\n修改地区请发送【更改地区】"
     else:
         weather_str = f"{city['local']}（{city['country']}）\n{w['date']}\n\n" \
             f"白天：{w['day_weather']}\n气温：{w['day_temp']}\n体感温度：{w['day_feel']}\n" \
                 f"夜晚：{w['night_weather']}\n气温：{w['night_temp']}\n体感温度：{w['night_feel']}\n" \
-                    f"日出/日落：{w['sunrise']} / {w['sunset']}" 
+                    f"日出/日落：{w['sunrise']} / {w['sunset']}\n\n修改时间请发送【更改时间】\n修改地区请发送【更改地区】" 
     return weather_str
 
 async def tz_calc(code):
@@ -138,11 +176,11 @@ async def tz_calc(code):
         time_zone = local_hour - utc_time.hour
     return time_zone
 
-async def tz_check(time_zone):
+async def tz_check(time_zone, member_tz):
     """查看是否有时区到早上6点了"""
     utc_dt = datetime.utcnow().replace(tzinfo=timezone.utc)
     local_tz = utc_dt.astimezone(timezone(timedelta(hours=time_zone)))
-    if local_tz.hour == 6:
+    if local_tz.hour == member_tz:
         return True
     return False
 
@@ -224,7 +262,12 @@ async def update_version(settings):
     for name, city in settings['city_list'].items():
         new_settings['city_list'][name] = {}
         new_settings['city_list'][name]['code'] = city['code']
-        new_settings['city_list'][name]['members'] = city['members']
+        new_settings['city_list'][name]['members'] = []
+        for member in city['members']:
+            if len(member) == 2:
+                new_settings['city_list'][name]['members'].append(member)
+            else:
+                new_settings['city_list'][name]['members'].append([member, 6])
         cities = await get_search_results(name)
         for city in cities:
             if city['code'] == new_settings['city_list'][name]['code']:
