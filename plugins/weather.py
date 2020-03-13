@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from lxml.html import fromstring
 
 
-VERSION = '1.3.1'
+VERSION = '1.3.2'
 
 @nonebot.on_command('天气', shell_like=True)
 async def weather(session):
@@ -264,7 +264,7 @@ async def update_version(settings):
         new_settings['city_list'][name]['code'] = city['code']
         new_settings['city_list'][name]['members'] = []
         for member in city['members']:
-            if len(member) == 2:
+            if isinstance(member, list):
                 new_settings['city_list'][name]['members'].append(member)
             else:
                 new_settings['city_list'][name]['members'].append([member, 6])
